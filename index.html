@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Factory SCADA | Command & Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0d0d0d; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
+        .card { background-color: #1a1a1a; border: 1px solid #333; border-radius: 10px; }
+        .label-scada { color: #888; font-size: 0.75rem; text-transform: uppercase; font-weight: bold; }
+        .valor-scada { font-size: 1.8rem; font-weight: bold; color: #00adb5; }
+        .btn-panic { background-color: #ff4d4d; border: none; font-weight: bold; padding: 15px 30px; transition: 0.3s; }
+        .btn-panic:hover { background-color: #ff0000; box-shadow: 0 0 20px rgba(255,0,0,0.5); }
+        .table-log { font-size: 0.85rem; color: #aaa; }
+        #status-geral-box { border-left: 5px solid #ff4d4d; }
+        .status-emergencia { color: #ff4d4d !important; animation: blink 1s infinite; }
+        .text-muted {color: white}
+        #texto {color: white}
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body class="container-fluid py-3">
+
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-4">
+            <h3 style="color: #00adb5; margin: 0;">SMART SCADA - SISTEMA DE CONTROLE DISTRIBUÍDO</h3>
+            <small class="text-muted" style="color: white" id="texto"> Engenharia de prompt e aplicação em IA</small>
+        </div>
+        <div class="col-md-8 text-end">
+            <button onclick="resetarSistema()" class="btn btn-outline-info me-2">RESET SISTEMA</button>
+            <button onclick="dispararEmergencia()" class="btn btn-panic text-white">PARADA DE EMERGÊNCIA</button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-md-2">
+            <div class="card p-3 h-100" id="status-geral-box">
+                <div class="label-scada">Status Maquina</div>
+                <div id="status-maquina" class="valor-scada" style="font-size: 1.1rem;">AGUARDANDO</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card p-3 h-100">
+                <div class="label-scada">Produzidas</div>
+                <div id="total-pecas" class="valor-scada">0</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card p-3 h-100">
+                <div class="label-scada">Consumo (kWh)</div>
+                <div id="consumo-atual" class="valor-scada" style="color: #a6e22e;">0.00</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card p-3 h-100">
+                <div class="label-scada">Vibração (mm/s)</div>
+                <div id="vibracao-atual" class="valor-scada">0.0</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card p-3 h-100">
+                <div class="label-scada">Ciclo (s)</div>
+                <div id="ciclo-atual" class="valor-scada" style="color: #ae81ff;">0.0</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card p-3 h-100">
+                <div class="label-scada">Rejeitos</div>
+                <div id="pecas-rejeitadas" class="valor-scada text-danger">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-4 mb-3">
+        <div class="row align-items-center">
+            <div class="col-md-3 text-center">
+                <img id="detalhe-img" src="" class="img-fluid" style="max-height: 150px; border-radius: 10px; border: 1px solid #333;">
+            </div>
+            <div class="col-md-9">
+                <h3 id="detalhe-nome" class="text-info mb-1">---</h3>
+                <p id="detalhe-desc" class="text-muted small" style="line-height: 1.4;"></p>
+                <div class="row mt-3 text-center">
+                    <div class="col-4">
+                        <div class="label-scada">Preço Unitário</div>
+                        <div id="detalhe-preco" class="valor-scada" style="font-size: 1.2rem;">R$ 0,00</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="label-scada">Peso Técnico</div>
+                        <div id="detalhe-peso" class="fw-bold text-white">---</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="label-scada">Dimensões</div>
+                        <div id="detalhe-dim" class="fw-bold text-white">---</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-8">
+            <div class="card p-3 mb-3">
+                <h6 class="label-scada">Tendência de Temperatura (°C)</h6>
+                <canvas id="graficoTemperatura" height="100"></canvas>
+            </div>
+            <div class="card p-3">
+                <h6 class="label-scada">Análise de Vibração Harmônica</h6>
+                <canvas id="graficoVibracao" height="80"></canvas>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 mb-3">
+                <h6 class="label-scada mb-3">Histórico de Vendas (Real-Time)</h6>
+                <table class="table table-dark table-hover table-log">
+                    <thead>
+                        <tr><th>Produto</th><th>Qtd</th><th>Hora</th></tr>
+                    </thead>
+                    <tbody id="log-vendas"></tbody>
+                </table>
+            </div>
+
+            <div class="card p-3">
+                <h6 class="label-scada mb-3">Inventário de Matéria-Prima</h6>
+                <table class="table table-dark table-sm table-log">
+                    <thead>
+                        <tr><th>ID</th><th>Produto</th><th>Estoque</th></tr>
+                    </thead>
+                    <tbody id="tabela-estoque-corpo"></tbody>
+                </table>
+                <div id="alerta-ia" class="alert alert-danger mt-auto d-none">
+                    <strong>IA:</strong> <span id="msg-ia">Analisando...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const API_BASE = "http://192.168.200.226:8000"; 
+    let ultimoIdProduzido = null; 
+
+    const options = { 
+        scales: { y: { grid: { color: '#222' } }, x: { display: false } }, 
+        plugins: { legend: { display: false } }, 
+        animation: false 
+    };
+    
+    const chartTemp = new Chart(document.getElementById('graficoTemperatura'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: '#00adb5', backgroundColor: 'rgba(0,173,181,0.1)', fill: true, tension: 0.4 }] },
+        options: options
+    });
+
+    const chartVib = new Chart(document.getElementById('graficoVibracao'), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: '#ffcc00' }] },
+        options: options
+    });
+
+    function falar(texto) {
+        const msg = new SpeechSynthesisUtterance(texto);
+        msg.lang = 'pt-BR';
+        window.speechSynthesis.speak(msg);
+    }
+
+    async function dispararEmergencia() {
+        try {
+            await fetch(`${API_BASE}/emergencia`, { method: 'POST' });
+            falar("Atenção. Parada de emergência ativada.");
+        } catch(e) { console.error("Erro emergência:", e); }
+    }
+
+    async function resetarSistema() {
+        try {
+            await fetch(`${API_BASE}/reset-sistema`, { method: 'POST' });
+            falar("Sistema resetado.");
+        } catch(e) { console.error("Erro reset:", e); }
+    }
+
+    async function atualizar() {
+        try {
+            // --- 1. TELEMETRIA E GRÁFICOS ---
+            const resT = await fetch(`${API_BASE}/telemetria`);
+            const tele = await resT.json();
+            
+            if (tele && tele.length > 0) {
+                const u = tele[0];
+                document.getElementById('total-pecas').innerText = u.pecas_produzidas || 0;
+                document.getElementById('consumo-atual').innerText = (u.consumo_kwh || 0).toFixed(3);
+                document.getElementById('vibracao-atual').innerText = (u.vibracao || 0).toFixed(2);
+                document.getElementById('ciclo-atual').innerText = (u.ciclo_segundos || 0).toFixed(1);
+                document.getElementById('pecas-rejeitadas').innerText = u.pecas_rejeitadas || 0;
+
+                chartTemp.data.labels = tele.slice(0, 15).map(d => "").reverse();
+                chartTemp.data.datasets[0].data = tele.slice(0, 15).map(d => d.temperatura).reverse();
+                chartTemp.update();
+
+                chartVib.data.labels = tele.slice(0, 15).map(d => "").reverse();
+                chartVib.data.datasets[0].data = tele.slice(0, 15).map(d => d.vibracao).reverse();
+                chartVib.update();
+
+                // --- 2. DETALHES DO PRODUTO ATIVO (SÓ MUDA SE O ID MUDAR) ---
+                // Se o ID for 0 ou null, a máquina está vazia
+                if (u.produto_id && u.produto_id > 0 && u.produto_id !== ultimoIdProduzido) {
+                    ultimoIdProduzido = u.produto_id;
+                    try {
+                        const resP = await fetch(`${API_BASE}/produto/${u.produto_id}`);
+                        const p = await resP.json();
+                        if (p && !p.erro) {
+                            document.getElementById('detalhe-nome').innerText = p.nome;
+                            document.getElementById('detalhe-desc').innerText = p.descricao;
+                            document.getElementById('detalhe-preco').innerText = `R$ ${parseFloat(p.preco).toFixed(2)}`;
+                            document.getElementById('detalhe-peso').innerText = p.peso;
+                            document.getElementById('detalhe-dim').innerText = p.dimensoes;
+                            
+                            // Garante que a imagem tenha a extensão correta
+                            const imgNome = p.imagem_url.includes('.') ? p.imagem_url : `${p.imagem_url}.png`;
+                            document.getElementById('detalhe-img').src = `${API_BASE}/assets/${imgNome}`;
+                        }
+                    } catch (err) { console.warn("Erro ao buscar detalhes do produto", u.produto_id); }
+                } else if (!u.produto_id || u.produto_id === 0) {
+                    // Se não houver produto em linha, limpa o card
+                    document.getElementById('detalhe-nome').innerText = "AGUARDANDO ORDEM";
+                    document.getElementById('detalhe-desc').innerText = "Nenhum produto está sendo fabricado no momento.";
+                    document.getElementById('detalhe-img').src = "";
+                }
+            }
+
+            // --- 3. STATUS DA FÁBRICA ---
+            const resS = await fetch(`${API_BASE}/status-fabrica`);
+            const status = await resS.json();
+            const statusEl = document.getElementById('status-maquina');
+            const boxEl = document.getElementById('status-geral-box');
+
+            if (status.parada_emergencia) {
+                statusEl.innerText = "BLOQUEIO CRÍTICO";
+                statusEl.className = "valor-scada status-emergencia";
+                boxEl.style.borderLeftColor = "#ff0000";
+            } else if (tele && tele.length > 0) {
+                const u = tele[0];
+                statusEl.innerText = u.status_ligada ? "EM OPERAÇÃO" : "STANDBY";
+                statusEl.className = u.status_ligada ? "valor-scada text-warning" : "valor-scada text-success";
+                boxEl.style.borderLeftColor = u.status_ligada ? "#ffcc00" : "#4dff88";
+            }
+
+            // --- 4. LOG DE VENDAS (HISTÓRICO) ---
+            const resV = await fetch(`${API_BASE}/historico-vendas`);
+            const vendas = await resV.json();
+            let htmlVendas = "";
+            vendas.forEach(v => {
+                htmlVendas += `<tr><td>${v.nome}</td><td>${v.quantidade}</td><td>${new Date(v.data_venda).toLocaleTimeString()}</td></tr>`;
+            });
+            document.getElementById('log-vendas').innerHTML = htmlVendas;
+
+            // --- 5. INVENTÁRIO (ESTOQUE ATUAL) ---
+            const resE = await fetch(`${API_BASE}/estoque-atual`);
+            const estoque = await resE.json();
+            let htmlEstoque = "";
+            estoque.forEach(item => {
+                const alerta = item.quantidade_atual <= item.nivel_critico ? "text-danger fw-bold" : "";
+                htmlEstoque += `<tr><td>${item.id}</td><td>${item.nome}</td><td class="${alerta}">${item.quantidade_atual}</td></tr>`;
+            });
+            document.getElementById('tabela-estoque-corpo').innerHTML = htmlEstoque;
+
+        } catch (e) { 
+            console.error("Erro geral no Dashboard. Verifique se a API em " + API_BASE + " está rodando."); 
+        }
+    }
+    
+    // Intervalo de 1 segundo para o tempo real
+    setInterval(atualizar, 1000);
+</script>
+</body>
+</html>
