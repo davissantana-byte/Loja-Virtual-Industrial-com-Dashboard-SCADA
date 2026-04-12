@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART SCADA - Monitoramento Industrial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/main.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --bg-dark: #020617; --card-bg: #0f172a; --accent: #3b82f6; --text-gray: #94a3b8; }
+        body { background-color: var(--bg-dark); color: #f1f5f9; font-family: 'Inter', sans-serif; padding: 20px; }
+        
+        .header-scada { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid var(--accent); padding-bottom: 15px; }
+        .header-scada h1 { font-size: 1.5rem; color: #60a5fa; margin: 0; }
+
+        .metric-card { background: var(--card-bg); border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #1e293b; }
+        .metric-card h3 { font-size: 0.75rem; color: var(--text-gray); text-transform: uppercase; margin-bottom: 10px; }
+        .metric-value { font-size: 1.8rem; font-weight: 800; color: #fff; }
+        .status-on { color: #22c55e; } .status-off { color: #ef4444; }
+
+        .product-card { background: var(--card-bg); border-radius: 12px; padding: 25px; margin-top: 20px; display: flex; gap: 30px; align-items: center; border: 1px solid #334155; }
+        .product-img { width: 180px; height: 180px; background: #020617; border-radius: 8px; padding: 10px; object-fit: contain; }
+
+        .chart-container { background: var(--card-bg); border-radius: 12px; padding: 15px; margin-top: 20px; height: 250px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        th { text-align: left; color: var(--text-gray); padding: 10px; border-bottom: 1px solid #334155; }
+        td { padding: 10px; border-bottom: 1px solid #1e293b; }
+        .critical { color: #ef4444; font-weight: bold; }
+
+        .btn-control { padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-emergency { background: #ef4444; color: white; }
+        .btn-reset { background: #3b82f6; color: white; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="header-scada">
+    <div>
+        <h1>SMART SCADA - SISTEMA DE CONTROLE DISTRIBUÍDO</h1>
+        <small style="color: var(--text-gray);">Engenharia de Prompt e Aplicação em IA</small>
+    </div>
+    <div>
+        <button class="btn-control" style="background: #10b981; color: white;" onclick="produzirTudo()"><i class="fas fa-boxes-stacked"></i> PRODUZIR FALTANTES</button>
+        <button class="btn-control btn-reset" onclick="apiAction('reset-sistema')">RESET SISTEMA</button>
+        <button class="btn-control btn-emergency" onclick="apiAction('emergencia')">PARADA DE EMERGÊNCIA</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-2"><div class="metric-card"><h3>Status Máquina</h3><div id="status-maquina" class="metric-value status-off">STANDBY</div></div></div>
+    <div class="col-md-2"><div class="metric-card"><h3>Produzidas</h3><div id="pecas-prod" class="metric-value">0</div></div></div>
+    <div class="col-md-2"><div class="metric-card"><h3>Consumo (KWh)</h3><div id="consumo" class="metric-value">0.000</div></div></div>
+    <div class="col-md-2"><div class="metric-card"><h3>Vibração (mm/s)</h3><div id="vibracao" class="metric-value">0.00</div></div></div>
+    <div class="col-md-2"><div class="metric-card"><h3>Ciclo (s)</h3><div id="ciclo" class="metric-value">0.0</div></div></div>
+    <div class="col-md-2"><div class="metric-card"><h3>Rejeitos</h3><div id="rejeitos" class="metric-value" style="color: #f87171;">0</div></div></div>
+</div>
+
+<div class="product-card" id="card-produto">
+    <img id="p-img" src="assets/waiting.png" class="product-img" onerror="this.src='https://via.placeholder.com/150?text=Aguardando'">
+    <div style="flex-grow: 1;">
+        <h2 id="p-nome" style="color: #60a5fa;">AGUARDANDO ORDEM</h2>
+        <p id="p-desc" style="color: var(--text-gray); margin-bottom: 15px;">Nenhum produto está sendo fabricado no momento.</p>
+        <div class="row">
+            <div class="col-4"><b>PREÇO UNITÁRIO</b><br><span id="p-preco" style="color: #22c55e;">R$ 0,00</span></div>
+            <div class="col-4"><b>PESO TÉCNICO</b><br><span id="p-peso">---</span></div>
+            <div class="col-4"><b>DIMENSÕES</b><br><span id="p-dim">---</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="chart-container"><canvas id="chartTemp"></canvas></div>
+        <div class="chart-container"><canvas id="chartVib"></canvas></div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card" style="margin-top:20px; text-align: left; height: 250px; overflow-y: auto;">
+            <h3>Histórico de Vendas (Real-Time)</h3>
+            <table><thead><tr><th>Produto</th><th>Qtd</th><th>Hora</th></tr></thead><tbody id="lista-vendas"></tbody></table>
+        </div>
+        <div class="metric-card" style="margin-top:20px; text-align: left; height: 250px; overflow-y: auto;">
+            <h3>Inventário de Matéria-Prima</h3>
+            <table><thead><tr><th>ID</th><th>Produto</th><th>Estoque</th></tr></thead><tbody id="lista-estoque"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8000";
+    let ultimoIdProduzido = 0;
+
+    // --- CONFIGURAÇÃO DOS GRÁFICOS ---
+    const ctxTemp = document.getElementById('chartTemp').getContext('2d');
+    const chartTemp = new Chart(ctxTemp, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Temperatura (°C)', data: [], borderColor: '#3b82f6', tension: 0.4 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 40, max: 80 } } }
+    });
+
+    const ctxVib = document.getElementById('chartVib').getContext('2d');
+    const chartVib = new Chart(ctxVib, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Vibração Harmônica', data: [], backgroundColor: '#fbbf24' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // --- FUNÇÕES DE ATUALIZAÇÃO ---
+    async function atualizarDashboard() {
+        try {
+            // 1. Telemetria
+            const resT = await fetch(`${API_BASE}/telemetria`);
+            const tele = await resT.json();
+
+            if (tele.length > 0) {
+                const u = tele[0]; // Última leitura
+                
+                // Atualiza números
+                document.getElementById('pecas-prod').innerText = u.pecas_produzidas;
+                document.getElementById('consumo').innerText = u.consumo_kwh.toFixed(3);
+                document.getElementById('vibracao').innerText = u.vibracao.toFixed(2);
+                document.getElementById('ciclo').innerText = u.ciclo_segundos.toFixed(1);
+                document.getElementById('rejeitos').innerText = u.pecas_rejeitadas;
+
+                // Status da Máquina
+                const statusEl = document.getElementById('status-maquina');
+                if (u.status_ligada) {
+                    statusEl.innerText = "EM OPERAÇÃO";
+                    statusEl.className = "metric-value status-on";
+                } else {
+                    statusEl.innerText = "STANDBY";
+                    statusEl.className = "metric-value status-off";
+                }
+
+                // Lógica do Produto Ativo (Busca apenas se mudar o ID)
+                if (u.status_ligada && u.produto_id > 0 && u.produto_id !== ultimoIdProduzido) {
+                    ultimoIdProduzido = u.produto_id;
+                    const resP = await fetch(`${API_BASE}/produto/${u.produto_id}`);
+                    const p = await resP.json();
+                    
+                    document.getElementById('p-nome').innerText = p.nome;
+                    document.getElementById('p-desc').innerText = p.descricao;
+                    document.getElementById('p-preco').innerText = `R$ ${p.preco}`;
+                    document.getElementById('p-dim').innerText = p.dimensoes;
+                    document.getElementById('p-img').src = `${API_BASE}/assets/${p.imagem}`;
+                } else if (!u.status_ligada) {
+                    ultimoIdProduzido = 0;
+                    document.getElementById('p-nome').innerText = "AGUARDANDO ORDEM";
+                    document.getElementById('p-img').src = "assets/waiting.png";
+                }
+
+                // Atualiza Gráficos (pega os últimos 15)
+                const labels = tele.map((_, i) => i).reverse();
+                chartTemp.data.labels = labels;
+                chartTemp.data.datasets[0].data = tele.map(d => d.temperatura).reverse();
+                chartTemp.update('none');
+
+                chartVib.data.labels = labels;
+                chartVib.data.datasets[0].data = tele.map(d => d.vibracao).reverse();
+                chartVib.update('none');
+            }
+
+            // 2. Vendas
+            const resV = await fetch(`${API_BASE}/historico-vendas`);
+            const vendas = await resV.json();
+            document.getElementById('lista-vendas').innerHTML = vendas.map(v => 
+                `<tr><td>${v.nome}</td><td>${v.quantidade}</td><td>${new Date(v.data_venda).toLocaleTimeString()}</td></tr>`
+            ).join('');
+
+            // 3. Estoque
+            const resE = await fetch(`${API_BASE}/estoque-atual`);
+            const estoque = await resE.json();
+            document.getElementById('lista-estoque').innerHTML = estoque.map(e => 
+                `<tr><td>${e.id}</td><td>${e.nome}</td><td class="${e.quantidade_atual <= e.nivel_critico ? 'critical' : ''}">${e.quantidade_atual}</td></tr>`
+            ).join('');
+
+        } catch (err) { console.error("Erro na atualização:", err); }
+    }
+
+    async function apiAction(endpoint) {
+        await fetch(`${API_BASE}/${endpoint}`, { method: 'POST' });
+        alert("Comando enviado com sucesso!");
+    }
+
+    setInterval(atualizarDashboard, 1000);
+
+    async function produzirTudo() {
+    if(!confirm("Deseja iniciar a produção automática para itens abaixo de 50 unidades?")) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/produzir-faltantes`, { method: 'POST' });
+        const data = await response.json();
+        
+        if(data.status === "sucesso") {
+            alert(data.mensagem);
+        } else {
+            alert(data.mensagem || "Erro ao processar.");
+        }
+    } catch (error) {
+        alert("Erro de conexão com a API.");
+    }
+}
+</script>
+</body>
+</html>

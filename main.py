@@ -2,11 +2,13 @@ from fastapi import FastAPI, HTTPException
 import mysql.connector
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles # Adicionado
-import os # Adicionado
+from fastapi.staticfiles import StaticFiles
+import os
 
 app = FastAPI()
 
+# --- CONFIGURAÇÃO DE ACESSO (CORS) ---
+# Essencial para o seu home.html conseguir falar com esta API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -16,23 +18,21 @@ app.add_middleware(
 )
 
 # --- CONFIGURAÇÃO DE IMAGENS ---
-# IMPORTANTE: Mude 'NOME_DA_SUA_PASTA' para o nome real da pasta onde estão suas fotos
 PASTA_FOTOS = "assets" 
-
 if not os.path.exists(PASTA_FOTOS):
     os.makedirs(PASTA_FOTOS)
 
-# Isso faz o link http://IP:8000/assets/foto.png funcionar
+# Faz o link http://localhost:8000/assets/foto.png funcionar
 app.mount("/assets", StaticFiles(directory=PASTA_FOTOS), name="assets")
-# -------------------------------
 
+# Status global da fábrica (Parada de Emergência)
 sistema_status = {"parada_emergencia": False}
 
 def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="password", # Verifique se sua senha continua sendo 'password'
+        password="password", # Certifique-se que sua senha é 'password'
         database="sfrc_db"
     )
 
@@ -42,9 +42,11 @@ class Venda(BaseModel):
 
 @app.get("/")
 def home():
-    return {"status": "Sistema SFRC Operacional", "versao": "1.5 - Foto e Detalhes"}
+    return {"status": "Sistema SFRC Operacional", "versao": "1.6 - Integrada"}
 
-@app.get("/realizar-venda") # Deixei GET também para você testar no navegador se quiser
+# --- ROTA DE VENDA (CORRIGIDA) ---
+@app.get("/realizar-venda") 
+@app.post("/venda") # Aceita POST do site novo também
 def realizar_venda(produto_id: int, quantidade: int):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -52,20 +54,20 @@ def realizar_venda(produto_id: int, quantidade: int):
         # 1. Tira do estoque
         cursor.execute("UPDATE estoque SET quantidade_atual = quantidade_atual - %s WHERE produto_id = %s", (quantidade, produto_id))
         
-        # 2. Registra a venda
+        # 2. Registra a venda (CORRIGIDO: de id_produto para produto_id)
         cursor.execute("INSERT INTO vendas (produto_id, quantidade, data_venda) VALUES (%s, %s, NOW())", (produto_id, quantidade))
         
-        # 3. O PULO DO GATO: Se o estoque baixou do nível crítico, cria ordem de produção
+        # 3. GATILHO DE PRODUÇÃO: Se baixar do nível crítico, cria ordem
         cursor.execute("SELECT quantidade_atual, nivel_critico FROM estoque WHERE produto_id = %s", (produto_id,))
         estoque = cursor.fetchone()
         
-        if estoque['quantidade_atual'] <= estoque['nivel_critico']:
-            # Cria a ordem de produção que o simulador vai ler
+        if estoque and estoque['quantidade_atual'] <= estoque['nivel_critico']:
+            # Cria a ordem pendente que o simulador_clp.py vai detectar
             cursor.execute(
                 "INSERT INTO ordens_producao (produto_id, quantidade_solicitada, status) VALUES (%s, %s, 'pendente')",
-                (produto_id, 500) # Produz lote de 500
+                (produto_id, 500) 
             )
-            print(f"Ordem de produção gerada automaticamente para ID {produto_id}")
+            print(f"✅ Ordem de produção gerada para ID {produto_id}")
 
         conn.commit()
         return {"status": "sucesso"}
@@ -89,9 +91,9 @@ def reset_sistema():
     try:
         cursor.execute("UPDATE ordens_producao SET status = 'pendente' WHERE status = 'interrompida'")
         conn.commit()
-        msg = "✅ Sistema resetado."
+        msg = "✅ Sistema resetado e ordens retomadas."
     except Exception as e:
-        msg = f"Erro: {str(e)}"
+        msg = f"Erro ao resetar: {str(e)}"
     finally:
         cursor.close()
         conn.close()
@@ -105,6 +107,7 @@ def checar_status():
 def ler_telemetria():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    # Pega as últimas 15 leituras para os gráficos do Dashboard
     cursor.execute("SELECT * FROM maquinas_telemetria ORDER BY id DESC LIMIT 15")
     dados = cursor.fetchall()
     cursor.close()
@@ -115,7 +118,12 @@ def ler_telemetria():
 def historico_vendas():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT v.data_venda, p.nome, v.quantidade FROM vendas v JOIN produtos p ON v.produto_id = p.id ORDER BY v.id DESC LIMIT 5")
+    cursor.execute("""
+        SELECT v.data_venda, p.nome, v.quantidade 
+        FROM vendas v 
+        JOIN produtos p ON v.produto_id = p.id 
+        ORDER BY v.id DESC LIMIT 5
+    """)
     vendas = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -145,20 +153,51 @@ def reestocar_tudo():
         conn.commit()
         cursor.close()
         conn.close()
-        return {"status": "sucesso", "mensagem": "Reestocado."}
+        return {"status": "sucesso", "mensagem": "Estoque resetado para 500 unidades."}
     except Exception as e:
         return {"status": "erro", "detalhes": str(e)}
 
-# ROTA CORRIGIDA (Adicionado a barra / inicial)
 @app.get("/produto/{produto_id}")
 def get_produto_detalhes(produto_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Verifique se o nome da coluna é 'imagem' ou 'imagem_url' no seu banco
+    # Busca detalhes do produto para o Card do Dashboard
     cursor.execute("SELECT id, nome, descricao, preco, dimensoes, imagem FROM produtos WHERE id = %s", (produto_id,))
     produto = cursor.fetchone()
     cursor.close()
     conn.close()
     if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado no banco de dados")
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
     return produto
+
+@app.post("/produzir-faltantes")
+def produzir_faltantes():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # 1. Busca todos os produtos com estoque baixo (menos de 50)
+        cursor.execute("""
+            SELECT produto_id FROM estoque 
+            WHERE quantidade_atual < 50
+        """)
+        produtos_baixos = cursor.fetchall()
+        
+        if not produtos_baixos:
+            return {"status": "info", "mensagem": "Estoque estável. Nenhum item abaixo de 50 unidades."}
+
+        # 2. Para cada produto, cria uma Ordem de Produção de 500 peças
+        for item in produtos_baixos:
+            cursor.execute("""
+                INSERT INTO ordens_producao (produto_id, quantidade_solicitada, status) 
+                VALUES (%s, 500, 'pendente')
+            """, (item['produto_id'],))
+        
+        conn.commit()
+        return {"status": "sucesso", "mensagem": f"{len(produtos_baixos)} ordens enviadas para a fábrica!"}
+    
+    except Exception as e:
+        conn.rollback()
+        return {"status": "erro", "erro": str(e)}
+    finally:
+        cursor.close()
+        conn.close()
