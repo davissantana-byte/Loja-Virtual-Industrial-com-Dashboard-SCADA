@@ -59,6 +59,22 @@
         .cart-total { margin-top: 25px; font-size: 1.6rem; font-weight: 800; text-align: right; color: #020617; }
 
         footer { background: #020617; color: #94a3b8; padding: 60px 5% 40px; border-top: 4px solid #3b82f6; }
+
+        .footer-industrial {background: #020617; color: #f1f5f9; padding: 50px 5% 20px; border-top: 4px solid #3b82f6; margin-top: 50px;}
+        .footer-container {display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 40px; max-width: 1300px; margin: 0 auto;}
+        .footer-column h3 {color: #60a5fa; font-size: 1rem; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 1px;}
+        .footer-column ul {list-style: none; padding: 0;}
+        .footer-column ul li {margin-bottom: 10px;}
+        .footer-column ul li a {color: #94a3b8; text-decoration: none; font-size: 0.9rem; transition: 0.3s;}
+        .footer-column ul li a:hover {color: #3b82f6; padding-left: 5px;}
+        .social-icons {display: flex; gap: 15px; font-size: 1.2rem;}
+        .social-icons a {color: #94a3b8; transition: 0.3s;}
+        .social-icons a:hover {color: #3b82f6;}
+        .footer-divider {border: 0; border-top: 1px solid #1e293b; margin: 40px 0 20px;}
+        .footer-bottom {max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px;}
+        .payment-methods {font-size: 1.5rem; color: #475569; display: flex; gap: 20px;}
+        .team-credits {text-align: center; font-size: 0.75rem; color: #64748b; line-height: 1.6;} 
+        .team-credits strong {color: #94a3b8;}
     </style>
 </head>
 <body>
@@ -116,6 +132,66 @@
         <button class="btn-action btn-primary" style="margin-top: 30px;" onclick="checkout()">Finalizar Compra Industrial</button>
     </div>
 </div>
+
+<footer class="footer-industrial">
+    <div class="footer-container">
+        <div class="footer-column">
+            <h3>Categorias</h3>
+            <ul>
+                <li><a href="#">Atuadores</a></li>
+                <li><a href="#">Sensores</a></li>
+                <li><a href="#">Ferramentas</a></li>
+                <li><a href="#">Controladores</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column">
+            <h3>Ajuda</h3>
+            <ul>
+                <li><a href="#">Como comprar</a></li>
+                <li><a href="#">Prazos de entrega</a></li>
+                <li><a href="#">Trocas e Devoluções</a></li>
+                <li><a href="#">Suporte Técnico</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column">
+            <h3>Institucional</h3>
+            <ul>
+                <li><a href="#">Sobre a Squad</a></li>
+                <li><a href="#">Trabalhe Conosco</a></li>
+                <li><a href="#">Termos e Condições</a></li>
+                <li><a href="#">Privacidade</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-column">
+            <h3>Redes Sociais</h3>
+            <div class="social-icons">
+                <a href="#"><i class="fab fa-facebook"></i></a>
+                <a href="#"><i class="fab fa-instagram"></i></a>
+                <a href="#"><i class="fab fa-linkedin"></i></a>
+                <a href="#"><i class="fab fa-youtube"></i></a>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.75rem;">atendimento@squadindustrial.com</p>
+        </div>
+    </div>
+
+    <hr class="footer-divider">
+
+    <div class="footer-bottom">
+        <div class="payment-methods">
+            <i class="fab fa-cc-visa"></i>
+            <i class="fab fa-cc-mastercard"></i>
+            <i class="fab fa-pix"></i>
+            <i class="fas fa-barcode"></i>
+        </div>
+        <div class="team-credits">
+            <p>© 2026 Squad de Alto Desempenho. Todos os direitos reservados.</p>
+            <p><strong>EQUIPE TÉCNICA:</strong> José Henrique, Davi de Santana, Gustavo Pereira de Almeida, Gabriel de Castro Manzoti.</p>
+        </div>
+    </div>
+</footer>
 
 <script>
     // --- CONFIGURAÇÃO DA API ---
