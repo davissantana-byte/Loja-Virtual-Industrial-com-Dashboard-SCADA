@@ -35,3 +35,38 @@ CREATE DATABASE sfrc_db;
 USE sfrc_db;
 
 ALTER TABLE maquinas_telemetria ADD COLUMN produto_id INT;
+````
+
+### 2. Instalar Dependências
+````
+pip install fastapi uvicorn mysql-connector-python requests
+````
+
+### 3. Iniciar o Sistema
+Abra dois terminais e execute:
+
+* **Terminal 1 (API):** uvicorn main:app --reload
+* **Terminal 2 (Fábrica):** python simulador_clp.py
+
+### 4. Aceder às Interfaces
+Abra o ficheiro login.html no seu navegador para iniciar a experiência.
+
+### 📊 Funcionalidades em Destaque
+* **Reposição Automática:** Botão no Dashboard que identifica produtos com stock baixo (< 50 unidades) e inicia a produção em lote.
+
+* **Telemetria Avançada:** Monitorização de Temperatura, Vibração, Consumo Energético e Ciclo de Máquina.
+
+* **Interrupção de Emergência:** Comando remoto que trava o simulador Python instantaneamente via protocolo HTTP.
+
+* **Identificação de Ativos:** O sistema deteta o ID do produto em linha e carrega dinamicamente a imagem e ficha técnica.
+
+### 👥 Equipe Técnica
+* **Davi de Santana**
+
+* **José Henrique**
+
+* **Gustavo Pereira de Almeida**
+
+* **Gabriel de Castro Manzoti**
+
+Projeto desenvolvido para fins académicos e de estudo sobre integração de sistemas TI/TO.
