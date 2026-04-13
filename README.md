@@ -13,7 +13,7 @@ O sistema **SFRC (Squad de Alto Desempenho)** foi desenvolvido para simular o ci
 1.  **Marketplace (`home.html`):** Interface para compra de componentes. Se o stock baixar de um nível crítico, uma Ordem de Produção (OP) é gerada automaticamente via API.
 2.  **Backend (`main.py`):** Desenvolvido em **FastAPI**, gere as rotas, a base de dados e a comunicação entre os módulos.
 3.  **Simulador CLP (`simulador_clp.py`):** Script Python que atua como um controlador lógico programável, processando as ordens pendentes e gerando telemetria realística.
-4.  **Dashboard SCADA (`scada.html`):** Painel de controlo com gráficos em tempo real (Chart.js), visualização de ativos e botões de comando operacional (Emergência/Reset).
+4.  **Dashboard SCADA (`dashboard.html`):** Painel de controlo com gráficos em tempo real (Chart.js), visualização de ativos e botões de comando operacional (Emergência/Reset).
 5.  **Autenticação (`login.html`):** Sistema de acesso seguro via **Firebase** com distinção entre perfil de Cliente e Operador.
 
 ## 🛠️ Tecnologias Utilizadas
