@@ -1,95 +1,90 @@
 import mysql.connector
 import time
 import random
-import requests 
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="password", # Verifique sua senha aqui
-        database="sfrc_db"
-    )
+# CONFIGURAÇÃO DO BANCO DE DADOS
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "root",
+    "password": "password", # <--- COLOQUE SUA SENHA DO MYSQL AQUI
+    "database": "sfrc_db"
+}
 
-def rodar_fabrica():
-    print("--- SIMULADOR SCADA / CHÃO DE FÁBRICA ATIVO ---")
-    
-    while True:
-        conn = get_db_connection()
+def rodar_simulador():
+    try:
+        conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor(dictionary=True)
-        
-        # 1. Procura ordens pendentes
-        cursor.execute("SELECT * FROM ordens_producao WHERE status = 'pendente' LIMIT 1")
-        ordem = cursor.fetchone()
-        
-        if ordem:
-            id_ordem = ordem['id']
-            id_prod = ordem['produto_id']
-            qtd_total = ordem['quantidade_solicitada']
-            interrompida = False 
-            
-            print(f"\n[FÁBRICA] Nova Ordem Detectada! ID: {id_ordem} | Produto: {id_prod} | Lote: {qtd_total}")
-            
-            cursor.execute("UPDATE ordens_producao SET status = 'em_producao' WHERE id = %s", (id_ordem,))
+        print("🏭 SQUAD SIMULATOR 4.0: Automação e Gestão de Estoque Online.")
+        print("⏳ Aguardando ordens de produção...")
+
+        while True:
+            # Sincroniza para enxergar novos dados (evita o problema de 'travamento')
             conn.commit()
-            
-            # 2. Loop de produção
-            for i in range(1, qtd_total + 1):
-                
-                # Checagem de Emergência
-                try:
-                    res_status = requests.get("http://127.0.0.1:8000/status-fabrica").json()
-                    if res_status.get("parada_emergencia"):
-                        print(f"\n🛑 EMERGÊNCIA ATIVADA! Interrompendo Ordem {id_ordem}...")
-                        interrompida = True
-                        break 
-                except Exception as e:
-                    print(f"Erro ao checar status da API: {e}")
 
-                inicio_ciclo = time.time()
-                time.sleep(random.uniform(0.4, 0.8)) 
-                
-                temp = round(random.uniform(45.0, 72.0), 2)
-                vibracao = round(random.uniform(0.8, 4.5), 2)
-                consumo = round(random.uniform(1.1, 2.8), 4)
-                ciclo = round(time.time() - inicio_ciclo, 2)
-                rejeito = 1 if random.random() < 0.03 else 0
+            # Busca a próxima ordem pendente
+            cursor.execute("SELECT * FROM ordens_producao WHERE status = 'pendente' ORDER BY id ASC LIMIT 1")
+            ordem = cursor.fetchone()
 
-                # Inserção de telemetria ativa
-                cursor.execute("""
-                    INSERT INTO maquinas_telemetria 
-                    (maquina_id, ordem_producao_id, produto_id, status_ligada, pecas_produzidas, 
-                    temperatura, consumo_kwh, vibracao, ciclo_segundos, pecas_rejeitadas)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, ("INJETORA_01", id_ordem, id_prod, True, i, temp, consumo, vibracao, ciclo, rejeito))
+            if ordem:
+                ordem_id = ordem['id']
+                produto_id = ordem['produto_id']
+                qtd_total = ordem['quantidade_solicitada']
                 
+                print(f"\n📦 Ordem #{ordem_id} detectada. Iniciando lote de {qtd_total} unidades.")
+                
+                # Marca como processando
+                cursor.execute("UPDATE ordens_producao SET status = 'processando' WHERE id = %s", (ordem_id,))
                 conn.commit()
-                print(f"   -> Peça: {i}/{qtd_total} | Temp: {temp}°C | Vib: {vibracao}mm/s", end='\r')
-            
-            # 3. Finalização ou Interrupção
-            if interrompida:
-                cursor.execute("UPDATE ordens_producao SET status = 'interrompida' WHERE id = %s", (id_ordem,))
-                status_final = "INTERROMPIDA"
-            else:
-                cursor.execute("UPDATE ordens_producao SET status = 'concluida', data_conclusao = CURRENT_TIMESTAMP WHERE id = %s", (id_ordem,))
-                cursor.execute("UPDATE estoque SET quantidade_atual = quantidade_atual + %s WHERE produto_id = %s", (qtd_total, id_prod))
-                status_final = "CONCLUÍDA"
 
-            # --- LOG DE DESLIGAMENTO (TOTALMENTE CORRIGIDO) ---
-            # Agora com 5 buraquinhos (%s) para bater com os 5 valores enviados
-            cursor.execute("""
-                INSERT INTO maquinas_telemetria 
-                (maquina_id, ordem_producao_id, produto_id, status_ligada, pecas_produzidas, 
-                 temperatura, consumo_kwh, vibracao, ciclo_segundos, pecas_rejeitadas)
-                VALUES (%s, %s, %s, %s, %s, 0, 0, 0, 0, 0)
-            """, ("INJETORA_01", id_ordem, 0, False, 0)) 
-            
-            conn.commit()
-            print(f"\n[FÁBRICA] Ordem {id_ordem} finalizada: {status_final}.")
+                bloqueado = False
+                for i in range(1, qtd_total + 1):
+                    # Verifica se o 'agente_ia.py' bloqueou a máquina
+                    conn.commit() 
+                    cursor.execute("SELECT status FROM ordens_producao WHERE id = %s", (ordem_id,))
+                    status_atual = cursor.fetchone()['status']
 
-        cursor.close()
-        conn.close()
-        time.sleep(2) 
+                    if status_atual == 'BLOQUEADO_POR_IA':
+                        print(f"\n🛑 BLOQUEIO DE SEGURANÇA: Produção interrompida pela IA no ciclo {i}!")
+                        bloqueado = True
+                        break
 
-if __name__ == '__main__':
-    rodar_fabrica()
+                    # Geração de Telemetria (Simulando aquecimento gradual)
+                    # A cada ciclo a temperatura sobe um pouco para testar a IA
+                    temp = round(60.0 + (i * 0.5) + random.uniform(0, 5), 2)
+                    vib = round(random.uniform(2, 7), 2)
+
+                    # Grava telemetria (o Agente IA e o Dashboard leem isso)
+                    cursor.execute(
+                        "INSERT INTO maquinas_telemetria (temperatura, vibracao, ciclo_atual) VALUES (%s, %s, %s)",
+                        (temp, vib, i)
+                    )
+                    conn.commit()
+
+                    print(f"⚙️ Ciclo {i}/{qtd_total} | Temp: {temp}°C | Vib: {vib}mm/s")
+                    time.sleep(0.5) # Velocidade da linha de produção
+
+                if not bloqueado:
+                    # 1. Finaliza a ordem
+                    cursor.execute("UPDATE ordens_producao SET status = 'concluido' WHERE id = %s", (ordem_id,))
+                    
+                    # 2. ATUALIZA O ESTOQUE REAL (Soma as peças produzidas ao saldo atual)
+                    cursor.execute(
+                        "UPDATE produtos SET quantidade_atual = quantidade_atual + %s WHERE id = %s",
+                        (qtd_total, produto_id)
+                    )
+                    
+                    conn.commit()
+                    print(f"✅ Lote finalizado. Estoque do Produto {produto_id} atualizado (+{qtd_total}).")
+                
+                print("\n⏳ Aguardando próxima ordem...")
+
+            time.sleep(3) # Intervalo de respiro do loop
+
+    except mysql.connector.Error as err:
+        print(f"❌ Erro de banco de dados: {err}")
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            conn.close()
+
+if __name__ == "__main__":
+    rodar_simulador()
